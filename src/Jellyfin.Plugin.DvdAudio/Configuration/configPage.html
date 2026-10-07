@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>DVD-Audio</title>
+</head>
+<body>
+    <div id="DvdAudioConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox,emby-textarea">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="DvdAudioConfigForm">
+                    <p class="fieldDescription">
+                        Point this plugin at DVD-Audio .iso files or folder rips that contain AUDIO_TS.
+                        Music is published as FLAC. A hybrid disc that also has VIDEO_TS is linked into the movie library so Jellyfin's own DVD playback is used.
+                        CPPM-protected audio (DVDAUDIO.MKB) is listed and skipped. This plugin does not decrypt CSS or CPPM.
+                    </p>
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="MusicLibraryChoice">Music library</label>
+                        <select is="emby-select" id="MusicLibraryChoice" class="emby-select-withcolor emby-select"></select>
+                        <div class="fieldDescription">Choosing a library fills the path below. Albums are written to Artist/Album inside that folder.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="MusicLibraryPath">Music library path</label>
+                        <input id="MusicLibraryPath" name="MusicLibraryPath" type="text" is="emby-input" />
+                    </div>
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="MovieLibraryChoice">Movie library</label>
+                        <select is="emby-select" id="MovieLibraryChoice" class="emby-select-withcolor emby-select"></select>
+                        <div class="fieldDescription">Hybrid video zones are linked under a DVD-Audio folder in this library. An image that already lives here is not copied again.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="MovieLibraryPath">Movie library path</label>
+                        <input id="MovieLibraryPath" name="MovieLibraryPath" type="text" is="emby-input" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="SourcePaths">Extra source paths</label>
+                        <textarea id="SourcePaths" name="SourcePaths" is="emby-textarea" rows="4"></textarea>
+                        <div class="fieldDescription">Optional. One folder or .iso path per line. Semicolons also work. The music and movie roots are searched too.</div>
+                    </div>
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="AudioDelivery">Music files</label>
+                        <select is="emby-select" id="AudioDelivery" name="AudioDelivery" class="emby-select-withcolor emby-select">
+                            <option value="ExtractFlac">FLAC files in the music library</option>
+                            <option value="CacheStrm">FLAC cache with .strm shortcuts in the music library</option>
+                        </select>
+                        <div class="fieldDescription">Both modes produce real FLAC, so direct play and seeking work. Cache mode keeps the large files in the server data directory.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="PublishMusic" name="PublishMusic" type="checkbox" is="emby-checkbox" />
+                            <span>Publish music albums</span>
+                        </label>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="PublishMovies" name="PublishMovies" type="checkbox" is="emby-checkbox" />
+                            <span>Publish hybrid video zones to the movie library</span>
+                        </label>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="RebuildExisting" name="RebuildExisting" type="checkbox" is="emby-checkbox" />
+                            <span>Extract tracks again even when the album is already complete</span>
+                        </label>
+                        <div class="fieldDescription">Existing album.nfo files are left alone. An existing movie link is not replaced.</div>
+                    </div>
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script type="text/javascript">
+            var DvdAudioConfig = {
+                pluginUniqueId: 'c3a91e47-6d2b-4f58-9a17-8e4b0d6c2f91'
+            };
+
+            function dvdAudioFillLibraries(select, folders) {
+                select.innerHTML = '';
+                var blank = document.createElement('option');
+                blank.value = '';
+                blank.textContent = 'Choose a library';
+                select.appendChild(blank);
+                (folders || []).forEach(function (folder) {
+                    (folder.Locations || []).forEach(function (location) {
+                        if (!location) {
+                            return;
+                        }
+
+                        var option = document.createElement('option');
+                        option.value = location;
+                        var kind = folder.CollectionType || 'mixed';
+                        option.textContent = (folder.Name || location) + ' (' + kind + ')';
+                        select.appendChild(option);
+                    });
+                });
+            }
+
+            function dvdAudioSelect(select, value) {
+                select.value = '';
+                if (!value) {
+                    return;
+                }
+
+                for (var i = 0; i < select.options.length; i++) {
+                    if (select.options[i].value === value) {
+                        select.value = value;
+                        return;
+                    }
+                }
+            }
+
+            document.querySelector('#MusicLibraryChoice').addEventListener('change', function (event) {
+                if (event.target.value) {
+                    document.querySelector('#MusicLibraryPath').value = event.target.value;
+                }
+            });
+
+            document.querySelector('#MovieLibraryChoice').addEventListener('change', function (event) {
+                if (event.target.value) {
+                    document.querySelector('#MovieLibraryPath').value = event.target.value;
+                }
+            });
+
+            document.querySelector('#DvdAudioConfigPage').addEventListener('pageshow', function () {
+                Dashboard.showLoadingMsg();
+                var foldersPromise = ApiClient.getJSON(ApiClient.getUrl('Library/VirtualFolders'));
+                var configPromise = ApiClient.getPluginConfiguration(DvdAudioConfig.pluginUniqueId);
+                Promise.all([foldersPromise, configPromise]).then(function (results) {
+                    dvdAudioFillLibraries(document.querySelector('#MusicLibraryChoice'), results[0]);
+                    dvdAudioFillLibraries(document.querySelector('#MovieLibraryChoice'), results[0]);
+                    var config = results[1] || {};
+                    document.querySelector('#MusicLibraryPath').value = config.MusicLibraryPath || '';
+                    document.querySelector('#MovieLibraryPath').value = config.MovieLibraryPath || '';
+                    document.querySelector('#SourcePaths').value = config.SourcePaths || '';
+                    document.querySelector('#AudioDelivery').value = config.AudioDelivery || 'ExtractFlac';
+                    document.querySelector('#PublishMusic').checked = config.PublishMusic !== false;
+                    document.querySelector('#PublishMovies').checked = config.PublishMovies !== false;
+                    document.querySelector('#RebuildExisting').checked = !!config.RebuildExisting;
+                    dvdAudioSelect(document.querySelector('#MusicLibraryChoice'), config.MusicLibraryPath || '');
+                    dvdAudioSelect(document.querySelector('#MovieLibraryChoice'), config.MovieLibraryPath || '');
+                    Dashboard.hideLoadingMsg();
+                });
+            });
+
+            document.querySelector('#DvdAudioConfigForm').addEventListener('submit', function (event) {
+                event.preventDefault();
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(DvdAudioConfig.pluginUniqueId).then(function (config) {
+                    config.MusicLibraryPath = document.querySelector('#MusicLibraryPath').value.trim();
+                    config.MovieLibraryPath = document.querySelector('#MovieLibraryPath').value.trim();
+                    config.SourcePaths = document.querySelector('#SourcePaths').value;
+                    config.AudioDelivery = document.querySelector('#AudioDelivery').value;
+                    config.PublishMusic = document.querySelector('#PublishMusic').checked;
+                    config.PublishMovies = document.querySelector('#PublishMovies').checked;
+                    config.RebuildExisting = document.querySelector('#RebuildExisting').checked;
+                    ApiClient.updatePluginConfiguration(DvdAudioConfig.pluginUniqueId, config).then(function (result) {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                    });
+                });
+                return false;
+            });
+        </script>
+    </div>
+</body>
+</html>

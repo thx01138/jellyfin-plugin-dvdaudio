@@ -1,0 +1,12 @@
+{
+  "category": "General",
+  "changelog": "Initial release. Parses AUDIO_TS from an .iso or a folder rip, extracts LPCM and MLP tracks to FLAC, and links hybrid video zones for Jellyfin's existing DVD playback.",
+  "description": "Imports DVD-Audio groups as FLAC albums and links a hybrid VIDEO_TS zone into a movie library. Audio-only images are hidden from the movie resolver. CPPM-protected audio is skipped.",
+  "guid": "c3a91e47-6d2b-4f58-9a17-8e4b0d6c2f91",
+  "name": "DVD-Audio",
+  "overview": "Read a DVD-Audio disc into Music and Movie libraries.",
+  "owner": "jason",
+  "targetAbi": "10.11.0.0",
+  "timestamp": "2026-10-07T00:00:00Z",
+  "version": "1.0.0.0"
+}
